@@ -1,0 +1,21 @@
+[package]
+name = "wmc-media"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+wmc-domain.workspace = true
+anyhow.workspace = true
+lofty.workspace = true
+tempfile.workspace = true
+kamadak-exif.workspace = true
+chrono = { workspace = true, features = ["std", "clock"] }
+image = { workspace = true, features = ["png", "jpeg", "webp", "gif", "bmp", "tiff"] }
+
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+rodio = { workspace = true, features = ["symphonia-wav", "symphonia-pcm"] }

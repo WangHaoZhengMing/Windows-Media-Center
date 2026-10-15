@@ -1,16 +1,8 @@
-use crate::{LibraryConfig, MediaKind};
+use crate::{LibraryConfig, MediaFile, MediaKind};
 use std::{
     collections::HashSet,
-    path::PathBuf,
     sync::atomic::{AtomicBool, Ordering},
 };
-
-#[derive(Clone, Debug)]
-pub struct MediaFile {
-    pub path: PathBuf,
-    pub name: String,
-    pub kind: MediaKind,
-}
 
 #[derive(Default)]
 pub struct ScanResult {
@@ -122,6 +114,7 @@ fn supported(path: &std::path::Path, kind: MediaKind) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     #[test]
     fn a_cancelled_scan_does_not_enter_any_roots() {
         let config = LibraryConfig {

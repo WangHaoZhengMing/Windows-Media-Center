@@ -1,6 +1,7 @@
 //! Original WMC PNG resources, embedded without modifying their bytes.
 mod artwork;
 mod browse;
+#[path = "generated/catalog.rs"]
 mod catalog;
 mod icons;
 mod launch;

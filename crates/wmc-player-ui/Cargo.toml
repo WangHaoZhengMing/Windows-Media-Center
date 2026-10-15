@@ -1,0 +1,28 @@
+[package]
+name = "wmc-player-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+wmc-application.workspace = true
+wmc-domain.workspace = true
+wmc-media.workspace = true
+wmc-platform.workspace = true
+wmc-enrichment.workspace = true
+wmc-lyrics.workspace = true
+wmc-motion.workspace = true
+wmc-design.workspace = true
+wmc-assets.workspace = true
+anyhow.workspace = true
+gpui-kit.workspace = true
+ab_glyph.workspace = true
+unicode-segmentation.workspace = true
+serde_json.workspace = true
+image = { workspace = true, features = ["png", "jpeg", "webp"] }
+
+[dev-dependencies]
+fontdue.workspace = true
+
+[lints]
+workspace = true

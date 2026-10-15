@@ -1,0 +1,29 @@
+[package]
+name = "wmc-application"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+wmc-domain.workspace = true
+wmc-media.workspace = true
+wmc-library.workspace = true
+wmc-playback.workspace = true
+wmc-lyrics.workspace = true
+wmc-enrichment.workspace = true
+wmc-platform.workspace = true
+anyhow.workspace = true
+async-channel.workspace = true
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+image = { workspace = true, features = ["png", "jpeg", "webp"] }
+
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+wmc-platform = { workspace = true, features = ["test-support"] }
+wmc-playback = { workspace = true, features = ["test-support"] }
+lofty.workspace = true
+tempfile.workspace = true

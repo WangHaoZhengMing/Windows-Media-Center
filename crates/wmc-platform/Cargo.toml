@@ -1,0 +1,26 @@
+[package]
+name = "wmc-platform"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+wmc-domain.workspace = true
+anyhow.workspace = true
+async-channel.workspace = true
+image = { workspace = true, features = ["png"] }
+
+[target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
+volumecontrol.workspace = true
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { workspace = true, features = ["Foundation", "Media", "Media_Playback", "Storage_Streams"] }
+windows-registry.workspace = true
+
+[lints]
+workspace = true
+
+[target.'cfg(target_os = "windows")'.dev-dependencies]
+windows = { workspace = true, features = ["Media_Control"] }
+
+[features]
+test-support = []

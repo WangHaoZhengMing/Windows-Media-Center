@@ -5,6 +5,10 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+wmc-domain.workspace = true
+wmc-media.workspace = true
+image.workspace = true
+
 anyhow.workspace = true
 dirs.workspace = true
 serde = { workspace = true, features = ["derive"] }

@@ -1,0 +1,21 @@
+[package]
+name = "wmc-playback"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+wmc-domain.workspace = true
+anyhow.workspace = true
+lofty.workspace = true
+rodio = { workspace = true, features = ["playback", "symphonia-mp3", "symphonia-wav", "symphonia-pcm", "symphonia-flac", "symphonia-vorbis", "symphonia-isomp4", "symphonia-aac"] }
+
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+test-support = []

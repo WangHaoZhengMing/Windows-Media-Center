@@ -1,0 +1,27 @@
+[package]
+name = "wmc-enrichment"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+wmc-domain.workspace = true
+wmc-lyrics.workspace = true
+wmc-platform.workspace = true
+anyhow.workspace = true
+aes.workspace = true
+async-channel.workspace = true
+base64.workspace = true
+flate2.workspace = true
+md-5.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+url.workspace = true
+serde = { workspace = true, features = ["derive"] }
+image = { workspace = true, features = ["png", "jpeg", "webp"] }
+ureq = { workspace = true, features = ["rustls", "gzip", "platform-verifier"] }
+
+
+[lints]
+workspace = true

@@ -1,5 +1,5 @@
 //! Original menu tracks and the actual CIL interpolation formulas.
-//! See docs/reference/context-menu.il (ComputeExp/Log/SCurve, RVAs 0x514E0..0x5160C).
+//! Recovered ComputeExp/Log/SCurve timing curves.
 
 #[derive(Clone, Copy, Debug)]
 pub struct ContextMenuPose {

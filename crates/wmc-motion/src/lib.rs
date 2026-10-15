@@ -13,3 +13,7 @@ pub use launch::{LAUNCH_DURATION, LaunchPose, launch_pose};
 
 #[cfg(test)]
 mod tests;
+
+pub mod lyrics;
+pub mod player;
+pub mod spring;

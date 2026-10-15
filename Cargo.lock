@@ -7708,11 +7708,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
-name = "wmc"
+name = "wmc-application"
 version = "0.1.0"
 dependencies = [
- "embed-resource",
- "wmc-ui",
+ "anyhow",
+ "async-channel",
+ "image",
+ "lofty",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "wmc-domain",
+ "wmc-enrichment",
+ "wmc-library",
+ "wmc-lyrics",
+ "wmc-media",
+ "wmc-platform",
+ "wmc-playback",
 ]
 
 [[package]]
@@ -7720,17 +7732,57 @@ name = "wmc-assets"
 version = "0.1.0"
 
 [[package]]
-name = "wmc-controls"
+name = "wmc-design"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "gpui-base",
  "gpui-kit",
+ "image",
  "wmc-assets",
+ "wmc-domain",
 ]
 
 [[package]]
-name = "wmc-core"
+name = "wmc-desktop"
 version = "0.1.0"
+dependencies = [
+ "embed-resource",
+ "gpui-kit",
+ "wmc-application",
+ "wmc-design",
+ "wmc-platform",
+ "wmc-shell",
+]
+
+[[package]]
+name = "wmc-domain"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "wmc-enrichment"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "anyhow",
+ "async-channel",
+ "base64 0.22.1",
+ "flate2",
+ "image",
+ "md-5",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "ureq",
+ "url",
+ "wmc-domain",
+ "wmc-lyrics",
+ "wmc-platform",
+]
 
 [[package]]
 name = "wmc-library"
@@ -7738,10 +7790,35 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dirs",
+ "image",
  "serde",
  "serde_json",
  "tempfile",
  "walkdir",
+ "wmc-domain",
+ "wmc-media",
+]
+
+[[package]]
+name = "wmc-lyrics"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "roxmltree 0.21.1",
+]
+
+[[package]]
+name = "wmc-media"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "image",
+ "kamadak-exif",
+ "lofty",
+ "rodio",
+ "tempfile",
+ "wmc-domain",
 ]
 
 [[package]]
@@ -7749,54 +7826,68 @@ name = "wmc-motion"
 version = "0.1.0"
 
 [[package]]
-name = "wmc-player"
+name = "wmc-platform"
 version = "0.1.0"
 dependencies = [
- "ab_glyph",
- "aes",
  "anyhow",
  "async-channel",
- "base64 0.22.1",
- "flate2",
- "fontdue",
- "gpui-kit",
  "image",
- "lofty",
- "md-5",
- "rodio",
- "roxmltree 0.21.1",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
- "unicode-segmentation",
- "ureq",
- "url",
  "volumecontrol",
  "windows 0.62.2",
  "windows-registry",
- "wmc-assets",
- "wmc-controls",
- "wmc-core",
- "wmc-motion",
+ "wmc-domain",
 ]
 
 [[package]]
-name = "wmc-ui"
+name = "wmc-playback"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lofty",
+ "rodio",
+ "tempfile",
+ "wmc-domain",
+]
+
+[[package]]
+name = "wmc-player-ui"
+version = "0.1.0"
+dependencies = [
+ "ab_glyph",
+ "anyhow",
+ "fontdue",
+ "gpui-kit",
+ "image",
+ "serde_json",
+ "unicode-segmentation",
+ "wmc-application",
+ "wmc-assets",
+ "wmc-design",
+ "wmc-domain",
+ "wmc-enrichment",
+ "wmc-lyrics",
+ "wmc-media",
+ "wmc-motion",
+ "wmc-platform",
+]
+
+[[package]]
+name = "wmc-shell"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
  "gpui-kit",
  "image",
- "kamadak-exif",
  "url",
+ "wmc-application",
  "wmc-assets",
- "wmc-controls",
- "wmc-core",
+ "wmc-design",
+ "wmc-domain",
  "wmc-library",
+ "wmc-media",
  "wmc-motion",
- "wmc-player",
+ "wmc-player-ui",
 ]
 
 [[package]]

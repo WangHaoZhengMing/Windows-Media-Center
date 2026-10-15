@@ -1,15 +1,21 @@
 [workspace]
 members = [
-    "crates/wmc-app",
-    "crates/wmc-assets",
-    "crates/wmc-controls",
-    "crates/wmc-core",
+    "apps/wmc-desktop",
+    "crates/wmc-domain",
+    "crates/wmc-media",
     "crates/wmc-library",
+    "crates/wmc-playback",
+    "crates/wmc-lyrics",
+    "crates/wmc-enrichment",
+    "crates/wmc-platform",
+    "crates/wmc-application",
+    "crates/wmc-assets",
     "crates/wmc-motion",
-    "crates/wmc-player",
-    "crates/wmc-ui",
+    "crates/wmc-design",
+    "crates/wmc-player-ui",
+    "crates/wmc-shell",
 ]
-default-members = ["crates/wmc-app"]
+default-members = ["apps/wmc-desktop"]
 resolver = "3"
 
 [workspace.package]
@@ -19,13 +25,19 @@ publish = false
 
 [workspace.dependencies]
 # Workspace crates.
-wmc-assets = { path = "crates/wmc-assets" }
-wmc-controls = { path = "crates/wmc-controls" }
-wmc-core = { path = "crates/wmc-core" }
+wmc-domain = { path = "crates/wmc-domain" }
+wmc-media = { path = "crates/wmc-media" }
 wmc-library = { path = "crates/wmc-library" }
+wmc-playback = { path = "crates/wmc-playback" }
+wmc-lyrics = { path = "crates/wmc-lyrics" }
+wmc-enrichment = { path = "crates/wmc-enrichment" }
+wmc-platform = { path = "crates/wmc-platform" }
+wmc-application = { path = "crates/wmc-application" }
+wmc-assets = { path = "crates/wmc-assets" }
 wmc-motion = { path = "crates/wmc-motion" }
-wmc-player = { path = "crates/wmc-player" }
-wmc-ui = { path = "crates/wmc-ui" }
+wmc-design = { path = "crates/wmc-design" }
+wmc-player-ui = { path = "crates/wmc-player-ui" }
+wmc-shell = { path = "crates/wmc-shell" }
 
 # Third-party versions and default-feature policies; crates select their features.
 ab_glyph = "0.2.32"

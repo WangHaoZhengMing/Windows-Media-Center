@@ -1,5 +1,5 @@
 //! Original launch timing; the UI supplies original image layers.
-#[path = "launch_tracks.rs"]
+#[path = "generated/launch_tracks.rs"]
 mod tracks;
 
 pub const LAUNCH_DURATION: f32 = 3.1;
