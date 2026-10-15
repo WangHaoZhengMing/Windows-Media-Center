@@ -128,7 +128,8 @@ impl PlayerView {
                 .spawn(async move { lyrics::font::SongFont::load(&lyric_text) })
                 .await;
             let _ = this.update(cx, |this, cx| {
-                this.lyric_images.set_font(font);
+                this.lyric_images.set_font(font.clone());
+                this.translation.images.set_font(font);
                 cx.notify();
             });
         });
@@ -259,7 +260,7 @@ impl Render for PlayerView {
                             .absolute()
                             .left(unit(columns.cover_left))
                             .bottom(unit(24.))
-                            .text_size(unit(12.))
+                            .text_size(text::font_pixels(12. * scale))
                             .text_color(rgb(0xc5d9e8).opacity(0.55))
                             .child(if let Some(status) = &self.status {
                                 status.clone()

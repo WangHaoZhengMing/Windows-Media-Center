@@ -60,3 +60,4 @@ Desktop.ini
 *.before-word-upgrade.json
 /media-cache/
 /translation-settings.json
+crates/test-playerui/

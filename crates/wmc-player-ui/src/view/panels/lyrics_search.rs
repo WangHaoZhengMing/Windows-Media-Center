@@ -282,7 +282,8 @@ impl PlayerView {
                 .spawn(async move { lyrics::font::SongFont::load(&text) })
                 .await;
             let _ = this.update(cx, |this, cx| {
-                this.lyric_images.set_font(font);
+                this.lyric_images.set_font(font.clone());
+                this.translation.images.set_font(font);
                 cx.notify();
             });
         });

@@ -13,6 +13,7 @@ impl PlayerView {
         self._asset_task = None;
         self.translation.stop();
         self.lyric_images.release(window);
+        self.translation.images.release(window);
         for mut cache in self.retired_lyrics.drain(..) {
             cache.release(window);
         }

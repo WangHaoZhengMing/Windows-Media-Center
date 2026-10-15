@@ -43,6 +43,9 @@ pub fn write_assets(path: &Path, lyrics: &str, cover: &[u8]) -> Result<PathBuf> 
         "此标签格式不支持歌词"
     );
     tag.remove_picture_type(PictureType::CoverFront);
+    if tag_type == TagType::Mp4Ilst {
+        tag.remove_picture_type(PictureType::Other);
+    }
     tag.push_picture(
         Picture::unchecked(cover.to_vec())
             .pic_type(PictureType::CoverFront)
@@ -203,12 +206,31 @@ mod tests {
                 String::from_utf8_lossy(&result.stderr)
             );
             let decode = || {
-                rodio::Decoder::try_from(fs::File::open(&path).unwrap())
-                    .unwrap()
-                    .collect::<Vec<_>>()
+                let output = std::process::Command::new("ffmpeg")
+                    .args(["-v", "error", "-i"])
+                    .arg(&path)
+                    .args(["-map", "0:a:0", "-f", "f32le", "pipe:1"])
+                    .output()
+                    .unwrap();
+                assert!(
+                    output.status.success(),
+                    "{}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
+                output.stdout
             };
             let before = decode();
             write_assets(&path, "[00:00.00]嵌入歌词测试", png.get_ref()).unwrap();
+            assert_eq!(decode(), before, "audio changed in {extension}");
+            let saved = Probe::open(&path).unwrap().read().unwrap();
+            assert_eq!(saved.primary_tag().unwrap().pictures().len(), 1);
+            let mut replacement = std::io::Cursor::new(Vec::new());
+            image::RgbaImage::from_pixel(5, 3, image::Rgba([90, 20, 10, 255]))
+                .write_to(&mut replacement, image::ImageFormat::Png)
+                .unwrap();
+            write_assets(&path, "[00:00.00]更换封面测试", replacement.get_ref()).unwrap_or_else(
+                |error| panic!("replacing existing artwork in {extension}: {error:#}"),
+            );
             assert_eq!(decode(), before, "audio changed in {extension}");
         }
     }

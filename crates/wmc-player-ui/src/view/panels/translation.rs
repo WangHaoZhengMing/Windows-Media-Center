@@ -1,3 +1,7 @@
+use super::super::lyrics::{
+    cache::LineImageCache,
+    layout::{LineLayout, PlacedWord},
+};
 use super::{PlayerView, text};
 use gpui_kit::{
     base::input::{Input, InputState},
@@ -16,18 +20,21 @@ pub(in crate::view) const LYRIC_GAP: f32 = 6.;
 
 struct TranslatedLine {
     rows: Vec<String>,
-    font_size: f32,
     line_height: f32,
+    layout: Arc<LineLayout>,
 }
 
 pub(in crate::view) struct TranslationState {
     pub open: bool,
     pub enabled: bool,
+    automatic: bool,
+    pub(in crate::view) images: LineImageCache,
     pub rows: BTreeMap<usize, String>,
     wrapped: BTreeMap<usize, TranslatedLine>,
     layout_key: Option<(u32, u32)>,
     microsoft: bool,
     key: Entity<InputState>,
+    key_message: String,
     region: Entity<InputState>,
     source: Entity<InputState>,
     target: Entity<InputState>,
@@ -45,9 +52,22 @@ impl TranslationState {
         cx: &mut Context<PlayerView>,
     ) -> Self {
         let prefs = Preferences::load();
+        let (saved_key, key_message) = match app.translation_key(prefs.microsoft) {
+            Ok(key) => (
+                key,
+                if cfg!(target_os = "windows") {
+                    "密钥由当前 Windows 用户的凭据管理器保存，重启后自动读取。".into()
+                } else {
+                    "密钥仅保留在本次运行的内存中。".into()
+                },
+            ),
+            Err(error) => (String::new(), error.to_string()),
+        };
         Self {
             open: false,
             enabled: prefs.enabled,
+            automatic: prefs.automatic,
+            images: LineImageCache::new(None, 0),
             rows: BTreeMap::new(),
             wrapped: BTreeMap::new(),
             layout_key: None,
@@ -55,10 +75,11 @@ impl TranslationState {
             key: cx.new(|cx| {
                 let mut state = InputState::new(window, cx)
                     .masked(true)
-                    .default_value(app.translation_key(prefs.microsoft));
+                    .default_value(saved_key);
                 state.set_editor_style(super::settings::editor_style());
                 state
             }),
+            key_message,
             region: cx.new(|cx| {
                 let mut state = InputState::new(window, cx).default_value(prefs.region);
                 state.set_editor_style(super::settings::editor_style());
@@ -76,7 +97,7 @@ impl TranslationState {
             }),
             busy: false,
             failed: false,
-            message: "按批翻译，每批最多 6 行；密钥仅保留在内存中。".into(),
+            message: "翻译结果会自动缓存，支持继续翻译。".into(),
             generation: 0,
             cancel: None,
             task: None,
@@ -95,12 +116,14 @@ impl TranslationState {
         self.rows.clear();
         self.wrapped.clear();
         self.layout_key = None;
+        self.images.reset(0);
     }
     pub fn prepare_layout(
         &mut self,
         width: f32,
         scale: f32,
         lyrics: &super::lyrics::layout::Layouts,
+        original: &wmc_lyrics::Lyrics,
         window: &Window,
     ) {
         let key = (width.to_bits(), scale.to_bits());
@@ -108,6 +131,7 @@ impl TranslationState {
             return;
         }
         self.wrapped.clear();
+        self.images.reset(lyrics.lines.len());
         for (&id, translated) in &self.rows {
             let text = translated.split_whitespace().collect::<Vec<_>>().join(" ");
             let font_size = lyrics.lines.get(id).map_or(29., |line| line.font_size) * 0.6;
@@ -141,12 +165,51 @@ impl TranslationState {
                 rows.push(text[start..end].trim().to_owned());
                 start = end;
             }
+            let words = rows
+                .iter()
+                .enumerate()
+                .map(|(index, row)| {
+                    let shaped = text::shape(
+                        row,
+                        font_size * scale,
+                        FontWeight::BOLD,
+                        rgb(0xffffff).into(),
+                        window,
+                    );
+                    let row_width = f32::from(shaped.width) / scale;
+                    PlacedWord {
+                        width: row_width,
+                        shaped,
+                        text: row.clone(),
+                        x: if original
+                            .lines
+                            .get(id)
+                            .is_some_and(|line| line.right_aligned)
+                        {
+                            (width - row_width).max(0.)
+                        } else {
+                            0.
+                        },
+                        y: index as f32 * line_height,
+                        start: 0.,
+                        end: 0.,
+                    }
+                })
+                .collect();
+            let layout = Arc::new(LineLayout {
+                words,
+                width,
+                height: rows.len() as f32 * line_height,
+                word_synced: false,
+                font_size,
+                line_height,
+            });
             self.wrapped.insert(
                 id,
                 TranslatedLine {
                     rows,
-                    font_size,
                     line_height,
+                    layout,
                 },
             );
         }
@@ -161,17 +224,49 @@ impl TranslationState {
             0.
         }
     }
-    pub fn line(&self, id: usize, scale: f32) -> Div {
+    pub(in crate::view) fn raster_layout(&self, id: usize) -> Option<Arc<LineLayout>> {
+        self.wrapped
+            .get(&id)
+            .filter(|_| self.enabled)
+            .map(|line| line.layout.clone())
+    }
+    pub fn line(&self, id: usize, scale: f32, sigma: f32) -> Div {
         let Some(layout) = self.wrapped.get(&id).filter(|_| self.enabled) else {
             return div();
         };
+        let cached = self.images.get(id);
+        let sharp = if cached.is_some() {
+            (1. - sigma / 0.9).clamp(0., 1.)
+        } else {
+            1.
+        };
         div()
-            .font_family("Microsoft YaHei UI")
-            .font_weight(FontWeight::BOLD)
-            .text_size(px(layout.font_size * scale))
-            .line_height(px(layout.line_height * scale))
-            .text_color(rgb(0xffffff).opacity(0.65))
-            .children(layout.rows.iter().map(|row| div().child(row.clone())))
+            .relative()
+            .w_full()
+            .h(px(layout.layout.height * scale))
+            .when(sharp > 0.001, |row| {
+                row.child(
+                    div()
+                        .size_full()
+                        .opacity(sharp * if cached.is_some() { 0.65 / 0.8 } else { 0.65 })
+                        .child(super::super::lyrics::line::render(
+                            layout.layout.clone(),
+                            cached.clone(),
+                            0.,
+                            0.,
+                            scale,
+                        )),
+                )
+            })
+            .when_some(cached, |row, cached| {
+                row.when(sigma > 0., |row| {
+                    row.child(
+                        cached
+                            .blurred(sigma, scale)
+                            .opacity(0.65 / 0.8 * (sigma / 0.9).clamp(0., 1.)),
+                    )
+                })
+            })
     }
 }
 impl Drop for TranslationState {
@@ -199,6 +294,50 @@ fn field(label: &'static str, state: &Entity<InputState>) -> Div {
         )
 }
 impl PlayerView {
+    fn load_translation_api_key(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match self.app.translation_key(self.translation.microsoft) {
+            Ok(value) => {
+                self.translation.key_message = if cfg!(target_os = "windows") {
+                    "密钥由当前 Windows 用户的凭据管理器保存，重启后自动读取。".into()
+                } else {
+                    "密钥仅保留在本次运行的内存中。".into()
+                };
+                self.translation
+                    .key
+                    .update(cx, |key, cx| key.set_value(value, window, cx));
+            }
+            Err(error) => {
+                self.translation
+                    .key
+                    .update(cx, |key, cx| key.set_value("", window, cx));
+                self.translation.key_message = error.to_string();
+            }
+        }
+    }
+
+    fn save_translation_api_key(&mut self, cx: &mut Context<Self>) -> bool {
+        let key = self.translation.key.read(cx).value().trim().to_owned();
+        let saved = match self
+            .app
+            .set_translation_key(self.translation.microsoft, key)
+        {
+            Ok(()) => {
+                self.translation.key_message = if cfg!(target_os = "windows") {
+                    "密钥已保存到 Windows 凭据管理器。".into()
+                } else {
+                    "密钥已保留在本次运行的内存中。".into()
+                };
+                true
+            }
+            Err(error) => {
+                self.translation.key_message = error.to_string();
+                false
+            }
+        };
+        cx.notify();
+        saved
+    }
+
     fn translation_preferences(&self, cx: &App) -> Preferences {
         Preferences {
             microsoft: self.translation.microsoft,
@@ -206,6 +345,7 @@ impl PlayerView {
             target: self.translation.target.read(cx).value().trim().into(),
             region: self.translation.region.read(cx).value().trim().into(),
             enabled: self.translation.enabled,
+            automatic: self.translation.automatic,
         }
     }
     fn persist_translation_preferences(&self, cx: &Context<Self>) {
@@ -219,6 +359,13 @@ impl PlayerView {
             .detach();
     }
     pub(in crate::view) fn restore_translation_cache(&mut self, cx: &mut Context<Self>) {
+        if self.translation.automatic
+            && Document::from_lyrics(&self.lyrics).is_ok()
+            && !self.translation.key.read(cx).value().trim().is_empty()
+        {
+            self.start_translation(cx);
+            return;
+        }
         if !self.translation.enabled {
             return;
         }
@@ -278,10 +425,6 @@ impl PlayerView {
         let source = self.translation.source.read(cx).value().trim().to_owned();
         let target = self.translation.target.read(cx).value().trim().to_owned();
         let key = self.translation.key.read(cx).value().trim().to_owned();
-        if !key.is_empty() {
-            self.app
-                .set_translation_key(self.translation.microsoft, key.clone());
-        }
         let region = self.translation.region.read(cx).value().trim().to_owned();
         let result = (|| -> anyhow::Result<_> {
             anyhow::ensure!(
@@ -311,6 +454,9 @@ impl PlayerView {
                 return;
             }
         };
+        if !self.save_translation_api_key(cx) {
+            return;
+        }
         let generation = self.translation.generation;
         self.translation.rows.clear();
         self.translation.layout_key = None;
@@ -430,13 +576,7 @@ impl PlayerView {
                             if !this.translation.microsoft {
                                 this.translation.stop();
                                 this.translation.microsoft = true;
-                                this.translation.key.update(cx, |key, cx| {
-                                    key.set_value(
-                                        this.app.translation_key(this.translation.microsoft),
-                                        window,
-                                        cx,
-                                    )
-                                });
+                                this.load_translation_api_key(window, cx);
                             }
                             cx.notify();
                         })),
@@ -454,19 +594,58 @@ impl PlayerView {
                             if this.translation.microsoft {
                                 this.translation.stop();
                                 this.translation.microsoft = false;
-                                this.translation.key.update(cx, |key, cx| {
-                                    key.set_value(
-                                        this.app.translation_key(this.translation.microsoft),
-                                        window,
-                                        cx,
-                                    )
-                                });
+                                this.load_translation_api_key(window, cx);
                             }
                             cx.notify();
                         })),
                     ),
             )
-            .child(field("API Key（仅保留在内存）", &self.translation.key))
+            .child(field(
+                if cfg!(target_os = "windows") {
+                    "API Key（Windows 凭据管理器）"
+                } else {
+                    "API Key（仅保留在内存）"
+                },
+                &self.translation.key,
+            ))
+            .when(cfg!(target_os = "windows"), |form| {
+                form.child(
+                    div()
+                        .mt(px(8.))
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(10.))
+                        .child(
+                            button("translation-save-key", "保存密钥").on_click(cx.listener(
+                                |this, _, _, cx| {
+                                    this.save_translation_api_key(cx);
+                                },
+                            )),
+                        )
+                        .child(button("translation-delete-key", "删除已保存密钥").on_click(
+                            cx.listener(|this, _, window, cx| {
+                                this.translation.stop();
+                                match this.app.delete_translation_key(this.translation.microsoft) {
+                                    Ok(()) => {
+                                        this.translation
+                                            .key
+                                            .update(cx, |key, cx| key.set_value("", window, cx));
+                                        this.translation.key_message = "已删除保存的密钥。".into();
+                                    }
+                                    Err(error) => this.translation.key_message = error.to_string(),
+                                }
+                                cx.notify();
+                            }),
+                        )),
+                )
+            })
+            .child(
+                div()
+                    .mt(px(6.))
+                    .text_size(px(12.))
+                    .text_color(rgb(0xa8c9df))
+                    .child(self.translation.key_message.clone()),
+            )
             .when(self.translation.microsoft, |form| {
                 form.child(field(
                     "微软资源区域（全局资源可留空）",
@@ -478,6 +657,27 @@ impl PlayerView {
                 "目标语言（zh-CN / zh-TW / en / ja 等）",
                 &self.translation.target,
             ))
+            .child(
+                div().mt(px(12.)).child(
+                    button("translation-automatic", if self.translation.automatic {
+                        "✓ 自动翻译：开启"
+                    } else {
+                        "自动翻译：关闭"
+                    }).on_click(cx.listener(|this, _, _, cx| {
+                        this.translation.automatic = !this.translation.automatic;
+                        if this.translation.automatic {
+                            this.start_translation(cx);
+                            if !this.translation.busy {
+                                this.persist_translation_preferences(cx);
+                            }
+                        } else {
+                            this.translation.stop();
+                            this.persist_translation_preferences(cx);
+                        }
+                        cx.notify();
+                    }))
+                )
+            )
             .child(
                 div()
                     .mt(px(16.))
@@ -529,7 +729,7 @@ impl PlayerView {
                     .mt(px(8.))
                     .text_size(px(12.))
                     .text_color(rgb(0xa8c9df))
-                    .child("使用正式云翻译接口，需开通对应服务；点击开始后发送歌词。"),
+                    .child("使用正式云翻译接口；开启自动翻译后，载入歌曲会自动发送歌词并优先使用缓存。"),
             );
         let close =
             button("translation-close", "关闭").on_click(cx.listener(|this, _, window, cx| {

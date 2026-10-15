@@ -69,8 +69,7 @@ impl Columns {
             lyric_left: lx / s,
             lyric_top: ly / s,
             lyric_width: lw.max(80.) / s,
-            // Reserve the user's WMC transport bar below the lyric viewport.
-            lyric_height: (h - ly - 52.).max(100.) / s,
+            lyric_height: (h - ly).max(100.) / s,
             wide,
         }
     }
@@ -117,6 +116,16 @@ mod tests {
             }
         }
     }
+    #[test]
+    fn lyrics_extend_to_the_window_bottom_in_both_layouts() {
+        for (width, height) in [(626., 720.), (520., 900.), (1376., 1030.), (2560., 1440.)] {
+            let scale = ui_scale(width, height);
+            let columns = Columns::new(width, height, scale);
+            let bottom = (columns.lyric_top + columns.lyric_height) * scale;
+            assert!((bottom - height).abs() < 0.01);
+        }
+    }
+
     #[test]
     fn instrumental_row_stays_clear_of_a_wrapped_previous_stanza() {
         let height = LYRIC_LINE_HEIGHT * 3.;

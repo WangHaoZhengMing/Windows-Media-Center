@@ -189,16 +189,31 @@ impl Application {
         }
         true
     }
-    pub fn translation_key(&self, microsoft: bool) -> String {
+    pub fn translation_key(&self, microsoft: bool) -> anyhow::Result<String> {
+        if let Some(key) = self.0.borrow().translation_keys.get(&microsoft).cloned() {
+            return Ok(key);
+        }
+        let key = wmc_platform::credentials::load_translation_key(microsoft)?.unwrap_or_default();
         self.0
-            .borrow()
+            .borrow_mut()
             .translation_keys
-            .get(&microsoft)
-            .cloned()
-            .unwrap_or_default()
+            .insert(microsoft, key.clone());
+        Ok(key)
     }
-    pub fn set_translation_key(&self, microsoft: bool, key: String) {
+    pub fn set_translation_key(&self, microsoft: bool, key: String) -> anyhow::Result<()> {
+        anyhow::ensure!(!key.trim().is_empty(), "请输入 API Key");
+        #[cfg(target_os = "windows")]
+        wmc_platform::credentials::save_translation_key(microsoft, &key)?;
         self.0.borrow_mut().translation_keys.insert(microsoft, key);
+        Ok(())
+    }
+    pub fn delete_translation_key(&self, microsoft: bool) -> anyhow::Result<()> {
+        wmc_platform::credentials::delete_translation_key(microsoft)?;
+        self.0
+            .borrow_mut()
+            .translation_keys
+            .insert(microsoft, String::new());
+        Ok(())
     }
     pub fn track_summary(&self) -> Option<(String, String)> {
         self.0

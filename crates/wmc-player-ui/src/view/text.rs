@@ -1,6 +1,28 @@
 //! White native text; the lyric rasterizer uses the same bold system font.
 use gpui_kit::{prelude::*, *};
 
+pub(super) fn font_pixels(size: f32) -> Pixels {
+    px((size * 2.).round().max(1.) / 2.)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[::core::prelude::v1::test]
+    fn continuous_resizing_reuses_a_bounded_set_of_native_label_sizes() {
+        let mut sizes = HashSet::new();
+        for step in 0..10_000 {
+            let requested = 12. + 12. * step as f32 / 9_999.;
+            let actual = f32::from(font_pixels(requested));
+            sizes.insert(actual.to_bits());
+            assert!((actual - requested).abs() <= 0.251);
+        }
+        assert!(sizes.len() <= 25);
+    }
+}
+
 pub(super) fn shape(
     text: &str,
     size: f32,
@@ -37,7 +59,7 @@ impl LitText<'_> {
     pub fn paint(&self, origin: Point<Pixels>, height: Pixels, window: &mut Window, cx: &mut App) {
         let white = shape(
             self.text,
-            self.size,
+            f32::from(font_pixels(self.size)),
             self.weight,
             rgb(0xffffff).opacity(self.alpha).into(),
             window,

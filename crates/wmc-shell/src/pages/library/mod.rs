@@ -89,7 +89,17 @@ impl AppShell {
         let generation = self.library.generation;
         let config = self.library.config.clone();
         self.library.loading = true;
-        self.library.items.clear();
+        let retired: Vec<_> = self
+            .library
+            .items
+            .drain(..)
+            .filter_map(|item| item.cover)
+            .collect();
+        cx.defer(move |cx| {
+            for image in retired {
+                cx.drop_image(image, None);
+            }
+        });
         self.library.pages = [0; 3];
         self.library.selection = [0; 3];
         cx.spawn(async move |this, cx| {

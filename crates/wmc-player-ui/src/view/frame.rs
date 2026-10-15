@@ -43,8 +43,13 @@ impl PlayerView {
             self.settings.disable_syllables,
             window,
         );
-        self.translation
-            .prepare_layout(available_lyric_width, scale, &layouts, window);
+        self.translation.prepare_layout(
+            available_lyric_width,
+            scale,
+            &layouts,
+            &self.lyrics,
+            window,
+        );
         let now = Instant::now();
         let dt = now.duration_since(self.last_frame).as_secs_f32();
         self.last_frame = now;

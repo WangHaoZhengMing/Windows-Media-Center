@@ -19,7 +19,11 @@ impl PlayerView {
         self.cover_search.open = true;
         self.lyrics_search.open = false;
         self.cover_search.busy = true;
-        self.cover_search.candidates.clear();
+        for (_, image) in self.cover_search.candidates.drain(..) {
+            if let Some(image) = image {
+                self.background.retire(image);
+            }
+        }
         self.cover_search.message = "正在匹配专辑封面…".into();
         self.cover_search.task = Some(cx.spawn(async move |this, cx| {
             let result = cx
@@ -284,7 +288,6 @@ impl PlayerView {
             "封面：{} · {} · {}",
             cover.candidate.source, cover.candidate.album, cover.candidate.artist
         ));
-        self.status = self.cover_search.source.clone();
         self.app
             .update_cover(&self.title, &self.artist, &self.online_query.album, &image);
         let backdrop = Backdrop::from_cover(&image);

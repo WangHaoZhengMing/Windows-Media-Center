@@ -2,7 +2,7 @@
 pub(super) mod cache;
 pub(super) mod font;
 pub(super) mod layout;
-mod line;
+pub(super) mod line;
 mod raster;
 use super::{PlayerView, frame::FrameState, layout::*};
 use gpui_kit::{prelude::*, *};
@@ -31,8 +31,9 @@ impl PlayerView {
         let logical_height = *logical_height;
         let lyric_width = columns.lyric_width;
         self.lyric_images.prepare_layout(scale, lyric_width, window);
-        // Prioritize the current/nearby rows, then prewarm the edge of the viewport.
-        // At most two CPU jobs can run; no convolution happens in this method.
+        self.translation
+            .images
+            .prepare_layout(scale, lyric_width, window);
         let mut visible: Vec<_> = self
             .motion
             .lines
@@ -44,12 +45,27 @@ impl PlayerView {
             })
             .map(|(index, _)| index)
             .collect();
-        if let (Some(first), Some(last)) = (visible.first(), visible.last()) {
-            self.lyric_images
-                .trim(first.saturating_sub(2), last.saturating_add(2), window);
-        }
         visible.sort_by_key(|index| index.abs_diff(active.unwrap_or(0)));
+        visible.truncate(cache::MAX_CACHED_LINES);
+        self.lyric_images.select_lines(&visible, window);
+        self.translation.images.select_lines(&visible, window);
         for index in visible {
+            if let Some(layout) = self.translation.raster_layout(index)
+                && let Some(job) = self.translation.images.request(index, layout, scale)
+            {
+                let generation = job.generation;
+                cx.spawn(async move |this, cx| {
+                    let result = cx
+                        .background_executor()
+                        .spawn(async move { job.run() })
+                        .await;
+                    let _ = this.update(cx, |this, cx| {
+                        this.translation.images.accept(generation, index, result);
+                        cx.notify();
+                    });
+                })
+                .detach();
+            }
             if let Some(job) = self
                 .lyric_images
                 .request(index, layouts.lines[index].clone(), scale)
@@ -244,7 +260,7 @@ impl PlayerView {
                                 ))
                                 .w(unit(lyric_width * visual_scale))
                                 .when(line.right_aligned, |row| row.text_align(TextAlign::Right))
-                                .child(self.translation.line(index, scale * visual_scale)),
+                                .child(self.translation.line(index, scale * visual_scale, sigma)),
                         )
                     })
                     .on_click(cx.listener(move |this, _, _, cx| this.seek_lyric(start, cx))),
@@ -260,12 +276,12 @@ impl PlayerView {
                         .px(unit(30.))
                         .pt(unit(100.))
                         .pb(unit(80.))
-                        .text_size(unit(29.))
+                        .text_size(super::text::font_pixels(29. * scale))
                         .text_color(rgb(0xd9e8f0).opacity(0.8))
                         .child(
                             div()
                                 .mb(unit(20.))
-                                .text_size(unit(14.))
+                                .text_size(super::text::font_pixels(14. * scale))
                                 .child("文本歌词 · 无同步时间"),
                         )
                         .children(text.lines().enumerate().map(|(index, line)| {
@@ -273,7 +289,7 @@ impl PlayerView {
                                 .mb(unit(10.))
                                 .child(line.to_owned())
                                 .when(self.translation.enabled, |row| {
-                                    row.child(self.translation.line(index, scale))
+                                    row.child(self.translation.line(index, scale, 0.))
                                 })
                         })),
                 );
@@ -281,7 +297,7 @@ impl PlayerView {
                 lyrics = lyrics.child(
                     div()
                         .mt(unit(170.))
-                        .text_size(unit(29.))
+                        .text_size(super::text::font_pixels(29. * scale))
                         .text_color(rgb(0xd9e8f0).opacity(0.6))
                         .child("此歌曲暂无同步歌词"),
                 );

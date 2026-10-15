@@ -13,6 +13,8 @@ image = { workspace = true, features = ["png"] }
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 volumecontrol.workspace = true
 [target.'cfg(target_os = "windows")'.dependencies]
+keyring-core.workspace = true
+windows-native-keyring-store.workspace = true
 windows = { workspace = true, features = ["Foundation", "Media", "Media_Playback", "Storage_Streams"] }
 windows-registry.workspace = true
 

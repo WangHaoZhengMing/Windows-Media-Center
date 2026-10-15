@@ -54,7 +54,11 @@ impl SongFont {
     }
 
     pub fn rasterize(&self, character: char, size: f32) -> Option<Arc<GlyphMask>> {
-        let id = *self.characters.get(&character)?;
+        let id = self
+            .characters
+            .get(&character)
+            .copied()
+            .unwrap_or_else(|| self.font.glyph_id(character).0);
         let mut masks = self.masks.lock().unwrap_or_else(|error| error.into_inner());
         // A resize replaces the size cache rather than retaining every past scale.
         if masks.size != size.to_bits() {
@@ -137,9 +141,15 @@ mod tests {
         let first = font.rasterize('英', 44.).unwrap();
         assert!(first.bitmap.iter().any(|a| *a > 0));
         assert!(Arc::ptr_eq(&first, &font.rasterize('英', 44.).unwrap()));
-        assert!(font.rasterize('外', 44.).is_none());
+        assert!(
+            font.rasterize('外', 44.)
+                .unwrap()
+                .bitmap
+                .iter()
+                .any(|a| *a > 0)
+        );
         font.rasterize('雄', 44.).unwrap();
-        assert_eq!(font.masks.lock().unwrap().glyphs.len(), 2);
+        assert_eq!(font.masks.lock().unwrap().glyphs.len(), 3);
         font.rasterize('泪', 66.).unwrap();
         assert_eq!(font.masks.lock().unwrap().glyphs.len(), 1);
         assert_eq!(font.rasterize(' ', 66.).unwrap().width, 0);

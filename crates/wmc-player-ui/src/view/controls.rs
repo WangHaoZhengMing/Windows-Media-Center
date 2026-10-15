@@ -101,7 +101,7 @@ impl PlayerView {
                 div()
                     .flex()
                     .justify_between()
-                    .text_size(px(12. * scale))
+                    .text_size(super::text::font_pixels(12. * scale))
                     .text_color(rgb(0xffffff).opacity(0.45))
                     .child(format_time(preview_seconds))
                     .child(format!(
@@ -213,7 +213,7 @@ impl PlayerView {
                             .bg(rgb(0x071c35).opacity(0.95))
                             .border_1()
                             .border_color(rgb(0x8dbfdc).opacity(0.4))
-                            .text_size(px(14. * scale))
+                            .text_size(super::text::font_pixels(14. * scale))
                             .child(match (state, &self.volume_error) {
                                 (_, Some(_)) => "系统音量不可用".to_owned(),
                                 (Some(state), _) if state.muted => "系统已静音".to_owned(),

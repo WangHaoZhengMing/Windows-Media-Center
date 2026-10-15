@@ -7,6 +7,7 @@ pub struct TranslationPreferences {
     pub target: String,
     pub region: String,
     pub enabled: bool,
+    pub automatic: bool,
 }
 impl Default for TranslationPreferences {
     fn default() -> Self {
@@ -16,7 +17,27 @@ impl Default for TranslationPreferences {
             target: "zh-CN".into(),
             region: String::new(),
             enabled: false,
+            automatic: true,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn older_settings_enable_automatic_translation_and_explicit_opt_out_survives() {
+        let old: TranslationPreferences = serde_json::from_str(r#"{"enabled":true}"#).unwrap();
+        assert!(old.automatic);
+        let disabled: TranslationPreferences =
+            serde_json::from_str(r#"{"automatic":false}"#).unwrap();
+        let saved = serde_json::to_vec(&disabled).unwrap();
+        assert!(
+            !serde_json::from_slice::<TranslationPreferences>(&saved)
+                .unwrap()
+                .automatic
+        );
     }
 }
 impl TranslationPreferences {
