@@ -1,0 +1,62 @@
+# Rust builds and generated UI previews
+/target/
+
+# Local reverse-engineering output and Python dependencies
+/.analysis-tools/
+/analysis/
+__pycache__/
+*.py[cod]
+/.venv/
+/venv/
+.pytest_cache/
+.ruff_cache/
+
+# Local profiling output and generated Typst previews
+*.profraw
+*.profdata
+*.rs.bk
+# Standalone local benchmark/profile captures
+*.dmp
+*.etl
+*.trace
+/crates/wmc-ui/src/**/preview.pdf
+/crates/wmc-ui/src/**/preview-*.png
+/crates/wmc-player/preview.pdf
+/crates/wmc-player/preview-*.png
+# Typst diagram exports (sources stay tracked; preferred output is target/ui-docs)
+/crates/**/preview.svg
+/crates/**/preview-*.svg
+/crates/wmc-player/docs/*-diagrams.pdf
+/crates/wmc-player/docs/*-diagrams-*.png
+/crates/wmc-player/docs/*-diagrams.svg
+/crates/wmc-ui/docs/*-diagrams.pdf
+/crates/wmc-ui/docs/*-diagrams-*.png
+/crates/wmc-ui/docs/*-diagrams.svg
+.typst-cache/
+
+# Local environment and editor state
+.env
+.env.local
+# Environment-specific credentials; keep distributable templates
+.env.*
+!.env.example
+!.env.sample
+.env.*.local
+/.idea/
+/.vs/
+
+# Temporary files and logs
+*.log
+*.tmp
+*.bak
+*.wmc-backup
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Local lyric upgrade backups and accidentally exported runtime caches
+*.before-word-upgrade.json
+/media-cache/
+/translation-settings.json

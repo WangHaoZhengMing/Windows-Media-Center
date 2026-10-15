@@ -1,0 +1,16 @@
+[package]
+name = "wmc-controls"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+wmc-assets.workspace = true
+
+gpui-kit.workspace = true
+
+[dev-dependencies]
+gpui-base = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true
