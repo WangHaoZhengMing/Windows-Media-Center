@@ -19,16 +19,7 @@ impl LibraryKindExt for LibraryKind {
         match self {
             Self::Photos => &["文件夹", "拍摄日期", "评分", "标签"],
             Self::Videos => &["文件夹", "拍摄日期", "标题", "最近播放"],
-            Self::Music => &[
-                "专辑",
-                "艺术家",
-                "流派",
-                "歌曲",
-                "播放列表",
-                "作曲家",
-                "年份",
-                "专辑艺术家",
-            ],
+            Self::Music => wmc_library::music::Category::LABELS,
         }
     }
 }
@@ -206,6 +197,7 @@ mod tests {
 
     #[test]
     fn browse_navigation_changes_pivots_without_touching_home_selection() {
+        assert_eq!(LibraryKind::Music.tabs(), &["专辑", "艺术家", "歌曲"]);
         let mut page = DestinationState::new(EntryId::MusicLibrary, true);
         for _ in 0..30 {
             page.navigate(Direction::Right);

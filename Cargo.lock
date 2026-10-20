@@ -7878,10 +7878,12 @@ version = "0.1.0"
 dependencies = [
  "ab_glyph",
  "anyhow",
+ "fontdb",
  "fontdue",
  "gpui-kit",
  "image",
  "serde_json",
+ "ttf-parser 0.25.1",
  "unicode-segmentation",
  "wmc-application",
  "wmc-assets",
@@ -7899,6 +7901,7 @@ name = "wmc-shell"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-channel",
  "chrono",
  "gpui-kit",
  "image",

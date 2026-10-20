@@ -235,11 +235,7 @@ impl TranslationState {
             return div();
         };
         let cached = self.images.get(id);
-        let sharp = if cached.is_some() {
-            (1. - sigma / 0.9).clamp(0., 1.)
-        } else {
-            1.
-        };
+        let sharp = super::super::lyrics::sharp_opacity(sigma);
         div()
             .relative()
             .w_full()

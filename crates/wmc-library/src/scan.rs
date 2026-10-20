@@ -16,6 +16,19 @@ pub fn scan(config: &LibraryConfig) -> ScanResult {
 }
 
 pub fn scan_cancellable(config: &LibraryConfig, cancelled: &AtomicBool) -> ScanResult {
+    let mut files = Vec::new();
+    let mut result = visit_cancellable(config, cancelled, |file| files.push(file));
+    files.sort_by_cached_key(|file| file.name.to_lowercase());
+    result.files = files;
+    result
+}
+
+/// Enumerate directly into a bounded processing queue without retaining every path first.
+pub(crate) fn visit_cancellable(
+    config: &LibraryConfig,
+    cancelled: &AtomicBool,
+    mut visit: impl FnMut(MediaFile),
+) -> ScanResult {
     let mut result = ScanResult::default();
     let mut seen = HashSet::new();
     for kind in MediaKind::ALL {
@@ -55,7 +68,7 @@ pub fn scan_cancellable(config: &LibraryConfig, cancelled: &AtomicBool) -> ScanR
                 if !seen.insert((kind.index(), canonical)) {
                     continue;
                 }
-                result.files.push(MediaFile {
+                visit(MediaFile {
                     path: entry.path().to_owned(),
                     kind,
                     name: entry
@@ -68,9 +81,6 @@ pub fn scan_cancellable(config: &LibraryConfig, cancelled: &AtomicBool) -> ScanR
             }
         }
     }
-    result
-        .files
-        .sort_by_cached_key(|file| file.name.to_lowercase());
     result
 }
 

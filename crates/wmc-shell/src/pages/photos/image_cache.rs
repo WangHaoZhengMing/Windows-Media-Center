@@ -24,12 +24,12 @@ struct Key {
 pub(crate) struct PhotoImages {
     wanted: Vec<Key>,
     images: HashMap<Key, Result<Arc<RenderImage>, String>>,
-    inflight: Option<(Key, Arc<AtomicBool>)>,
+    inflight: HashMap<Key, Arc<AtomicBool>>,
 }
 
 impl Drop for PhotoImages {
     fn drop(&mut self) {
-        if let Some((_, cancelled)) = &self.inflight {
+        for cancelled in self.inflight.values() {
             cancelled.store(true, Ordering::Relaxed);
         }
         // CPU pixel buffers are owned by images and drop with this object.
@@ -42,10 +42,10 @@ impl PhotoImages {
         let entity = cx.new(|_| Self {
             wanted: Vec::new(),
             images: HashMap::new(),
-            inflight: None,
+            inflight: HashMap::new(),
         });
         cx.observe_release(&entity, |cache, cx| {
-            if let Some((_, cancelled)) = &cache.inflight {
+            for cancelled in cache.inflight.values() {
                 cancelled.store(true, Ordering::Relaxed);
             }
             for (_, image) in cache.images.drain() {
@@ -61,10 +61,10 @@ impl PhotoImages {
     fn sync(&mut self, wanted: Vec<Key>, window: &mut Window, cx: &mut Context<Self>) {
         let active: HashSet<_> = wanted.iter().cloned().collect();
         self.evict_except(&active, |image| cx.drop_image(image, Some(window)));
-        if let Some((key, cancelled)) = &self.inflight
-            && !active.contains(key)
-        {
-            cancelled.store(true, Ordering::Relaxed);
+        for (key, cancelled) in &self.inflight {
+            if !active.contains(key) {
+                cancelled.store(true, Ordering::Relaxed);
+            }
         }
         self.wanted = wanted;
         self.pump(cx);
@@ -83,45 +83,45 @@ impl PhotoImages {
     }
 
     fn pump(&mut self, cx: &mut Context<Self>) {
-        if self.inflight.is_some() {
-            return;
+        // Keep cancelled jobs in the count until their pixel buffers are released.
+        while self.inflight.len() < 2 {
+            let Some(key) = self
+                .wanted
+                .iter()
+                .find(|key| !self.images.contains_key(*key) && !self.inflight.contains_key(*key))
+                .cloned()
+            else {
+                return;
+            };
+            let cancelled = Arc::new(AtomicBool::new(false));
+            self.inflight.insert(key.clone(), cancelled.clone());
+            cx.spawn(async move |this, cx| {
+                let task_key = key.clone();
+                let task_cancelled = cancelled.clone();
+                let result = cx
+                    .background_executor()
+                    .spawn(async move {
+                        wmc_media::photos::decode::decode(
+                            &task_key.path,
+                            task_key.size,
+                            &task_cancelled,
+                        )
+                    })
+                    .await;
+                let _ = this.update(cx, |cache, cx| {
+                    cache.inflight.remove(&key);
+                    if !cancelled.load(Ordering::Relaxed) && cache.wanted.contains(&key) {
+                        // Only small, still-needed pixels become renderer resources.
+                        let image = result.map(wmc_design::images::render_image);
+                        cache.images.insert(key, image);
+                        cx.notify();
+                    }
+                    // A completed or cancelled decode releases one bounded worker slot.
+                    cache.pump(cx);
+                });
+            })
+            .detach();
         }
-        let Some(key) = self
-            .wanted
-            .iter()
-            .find(|key| !self.images.contains_key(*key))
-            .cloned()
-        else {
-            return;
-        };
-        let cancelled = Arc::new(AtomicBool::new(false));
-        self.inflight = Some((key.clone(), cancelled.clone()));
-        cx.spawn(async move |this, cx| {
-            let task_key = key.clone();
-            let task_cancelled = cancelled.clone();
-            let result = cx
-                .background_executor()
-                .spawn(async move {
-                    wmc_media::photos::decode::decode(
-                        &task_key.path,
-                        task_key.size,
-                        &task_cancelled,
-                    )
-                })
-                .await;
-            let _ = this.update(cx, |cache, cx| {
-                cache.inflight = None;
-                if !cancelled.load(Ordering::Relaxed) && cache.wanted.contains(&key) {
-                    // Only small, still-needed pixels become renderer resources.
-                    let image = result.map(wmc_design::images::render_image);
-                    cache.images.insert(key, image);
-                    cx.notify();
-                }
-                // Even a cancelled decode must finish before the next begins.
-                cache.pump(cx);
-            });
-        })
-        .detach();
     }
 }
 
@@ -240,7 +240,7 @@ mod tests {
         let mut cache = PhotoImages {
             wanted: Vec::new(),
             images: HashMap::from([(key.clone(), Ok(image))]),
-            inflight: None,
+            inflight: HashMap::new(),
         };
         let mut released = 0;
         cache.evict_except(&HashSet::from([key]), |_| released += 1);
@@ -296,6 +296,7 @@ mod tests {
     #[test]
     fn cache_drop_cancels_pending_decode() {
         let cancelled = Arc::new(AtomicBool::new(false));
+        let second = Arc::new(AtomicBool::new(false));
         let key = Key {
             path: PathBuf::from("unused"),
             size: THUMB,
@@ -304,9 +305,19 @@ mod tests {
         let cache = PhotoImages {
             wanted: vec![key.clone()],
             images: HashMap::new(),
-            inflight: Some((key, cancelled.clone())),
+            inflight: HashMap::from([
+                (key.clone(), cancelled.clone()),
+                (
+                    Key {
+                        path: "second".into(),
+                        ..key
+                    },
+                    second.clone(),
+                ),
+            ]),
         };
         drop(cache);
         assert!(cancelled.load(Ordering::Relaxed));
+        assert!(second.load(Ordering::Relaxed));
     }
 }

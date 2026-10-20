@@ -13,7 +13,6 @@ use std::{
     time::{Duration, Instant},
 };
 const MAX_IN_FLIGHT: usize = 2;
-pub(super) const MAX_CACHED_LINES: usize = 5;
 static GENERATION: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Default)]
@@ -45,7 +44,7 @@ impl LineImageCache {
             lines: (0..count).map(|_| Entry::default()).collect(),
             pending_layout: None,
             retired: Vec::new(),
-            wanted: Vec::with_capacity(MAX_CACHED_LINES),
+            wanted: Vec::new(),
         }
     }
     pub fn set_font(&mut self, font: Option<Arc<SongFont>>) {
@@ -164,9 +163,6 @@ impl LineImageCache {
     fn retain_lines(&mut self, indices: &[usize], mut release: impl FnMut(Arc<RasterizedLine>)) {
         self.wanted.clear();
         for &index in indices {
-            if self.wanted.len() == MAX_CACHED_LINES {
-                break;
-            }
             if index < self.lines.len() && !self.wanted.contains(&index) {
                 self.wanted.push(index);
             }
@@ -195,20 +191,24 @@ mod tests {
     }
 
     #[test]
-    fn a_whole_song_never_retains_more_than_five_lines_and_eviction_releases_them() {
+    fn a_whole_song_retains_only_the_current_viewport_and_eviction_releases_it() {
         let mut cache = LineImageCache::new(None, 300);
         let mut weak = Vec::new();
         let mut released = 0;
         for current in 0usize..300 {
-            let indices: Vec<_> = (current.saturating_sub(2)..(current + 3).min(300)).collect();
+            // A tall viewport can contain substantially more than five lines.
+            let indices: Vec<_> = (current.saturating_sub(4)..(current + 7).min(300)).collect();
             cache.retain_lines(&indices, |_| released += 1);
-            for index in indices {
+            for &index in &indices {
                 if cache.get(index).is_none() {
                     cache.accept(cache.generation, index, empty_line());
                     weak.push(Arc::downgrade(&cache.get(index).unwrap()));
                 }
             }
-            assert!(weak.iter().filter(|line| line.strong_count() > 0).count() <= MAX_CACHED_LINES);
+            assert_eq!(
+                weak.iter().filter(|line| line.strong_count() > 0).count(),
+                indices.len()
+            );
         }
         cache.retain_lines(&[], |_| released += 1);
         assert_eq!(released, weak.len());
@@ -216,13 +216,13 @@ mod tests {
     }
 
     #[test]
-    fn late_background_results_cannot_restore_evicted_lines_or_exceed_the_limit() {
+    fn late_background_results_cannot_restore_evicted_lines() {
         let mut cache = LineImageCache::new(None, 20);
         cache.retain_lines(&[0], |_| {});
         cache.lines[0].pending = true;
         cache.in_flight = 1;
         cache.retain_lines(&(1..20).collect::<Vec<_>>(), |_| {});
-        assert_eq!(cache.wanted.len(), MAX_CACHED_LINES);
+        assert_eq!(cache.wanted.len(), 19);
         cache.accept(cache.generation, 0, empty_line());
         assert!(cache.get(0).is_none());
         assert!(!cache.lines[0].pending);

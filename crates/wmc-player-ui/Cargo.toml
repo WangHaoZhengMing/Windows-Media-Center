@@ -17,6 +17,8 @@ wmc-assets.workspace = true
 anyhow.workspace = true
 gpui-kit.workspace = true
 ab_glyph.workspace = true
+fontdb = "0.23.0"
+ttf-parser = "0.25.1"
 unicode-segmentation.workspace = true
 serde_json.workspace = true
 image = { workspace = true, features = ["png", "jpeg", "webp"] }

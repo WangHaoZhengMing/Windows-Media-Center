@@ -1,12 +1,89 @@
 //! Lyric viewport rendering and preparation of its visible image neighborhood.
 pub(super) mod cache;
 pub(super) mod font;
+pub(super) mod font_catalog;
 pub(super) mod layout;
 pub(super) mod line;
 mod raster;
 use super::{PlayerView, frame::FrameState, layout::*};
 use gpui_kit::{prelude::*, *};
 use wmc_motion::lyrics::profile as specs;
+
+/// Include actual painted bounds plus one spatial neighbor above and below.
+/// Wrapped text, translations and overlapping voices need no fixed row count.
+fn viewport_lines(bounds: &[(f32, f32)], height: f32, active: Option<usize>) -> Vec<usize> {
+    let mut visible = Vec::new();
+    let mut above: Option<(usize, f32)> = None;
+    let mut below: Option<(usize, f32)> = None;
+    for (index, &(top, line_height)) in bounds.iter().enumerate() {
+        let bottom = top + line_height;
+        if bottom + 30. >= 0. && top - 30. <= height {
+            visible.push(index);
+        } else if bottom < 0. && above.is_none_or(|(_, edge)| bottom > edge) {
+            above = Some((index, bottom));
+        } else if top > height && below.is_none_or(|(_, edge)| top < edge) {
+            below = Some((index, top));
+        }
+    }
+    visible.sort_by_key(|index| index.abs_diff(active.unwrap_or(0)));
+    // Prefetch must not take raster slots before the visible text.
+    visible.extend(above.map(|(index, _)| index));
+    visible.extend(below.map(|(index, _)| index));
+    visible
+}
+
+pub(super) fn sharp_opacity(sigma: f32) -> f32 {
+    (1. - sigma / 0.9).clamp(0., 1.)
+}
+
+#[cfg(test)]
+mod viewport_tests {
+    use super::{sharp_opacity, viewport_lines};
+    #[test]
+    fn all_visible_rows_and_only_one_neighbor_per_side_are_prepared() {
+        let bounds: Vec<_> = (0..20)
+            .map(|index| (index as f32 * 120. - 200., 90.))
+            .collect();
+        let wanted = viewport_lines(&bounds, 720., Some(3));
+        assert_eq!(wanted[0], 3);
+        for index in 1..=7 {
+            assert!(wanted.contains(&index));
+        }
+        assert!(wanted.contains(&0));
+        assert!(wanted.contains(&8));
+        assert!(!wanted.contains(&9));
+        assert_eq!(wanted.len(), 9);
+        assert!(viewport_lines(&bounds, 1200., Some(3)).len() > wanted.len());
+    }
+    #[test]
+    fn wrapped_rows_and_translations_use_their_full_height() {
+        let bounds = [
+            (-500., 100.),
+            (-180., 240.),
+            (140., 420.),
+            (620., 90.),
+            (850., 80.),
+            (1000., 80.),
+        ];
+        let wanted = viewport_lines(&bounds, 720., Some(1));
+        assert!(
+            wanted.contains(&1),
+            "partially visible tall stanza must be cached"
+        );
+        assert!(wanted.contains(&2));
+        assert!(wanted.contains(&3));
+        assert!(wanted.contains(&0));
+        assert!(wanted.contains(&4));
+        assert!(!wanted.contains(&5));
+    }
+    #[test]
+    fn pending_images_never_force_distant_lines_sharp() {
+        assert_eq!(sharp_opacity(0.), 1.);
+        assert!((sharp_opacity(0.45) - 0.5).abs() < 0.001);
+        assert_eq!(sharp_opacity(0.9), 0.);
+        assert_eq!(sharp_opacity(7.), 0.);
+    }
+}
 
 impl PlayerView {
     pub(super) fn prepare_lyric_images(
@@ -34,19 +111,14 @@ impl PlayerView {
         self.translation
             .images
             .prepare_layout(scale, lyric_width, window);
-        let mut visible: Vec<_> = self
+        let bounds: Vec<_> = self
             .motion
             .lines
             .iter()
             .enumerate()
-            .filter(|(index, line)| {
-                line.position.position + heights[*index] + 160. >= 0.
-                    && line.position.position - 160. <= logical_height
-            })
-            .map(|(index, _)| index)
+            .map(|(index, line)| (line.position.position, heights[index]))
             .collect();
-        visible.sort_by_key(|index| index.abs_diff(active.unwrap_or(0)));
-        visible.truncate(cache::MAX_CACHED_LINES);
+        let visible = viewport_lines(&bounds, logical_height, *active);
         self.lyric_images.select_lines(&visible, window);
         self.translation.images.select_lines(&visible, window);
         for index in visible {
@@ -182,14 +254,11 @@ impl PlayerView {
             }
             let distance = ((top - anchor) / (LYRIC_LINE_HEIGHT + LYRIC_ROW_GAP)).abs();
             let sigma = wmc_motion::player::focus::blur_sigma(distance, clarity);
-            let sharp_mix = if sigma < 0.9 {
-                (1. - sigma / 0.9).clamp(0., 1.)
-            } else {
-                0.
-            };
+            let sharp_mix = sharp_opacity(sigma);
             let cached = self.lyric_images.get(index);
-            let show_sharp = cached.is_none() || sharp_mix > 0.001;
-            let opacity_sharp = if cached.is_some() { sharp_mix } else { 1. };
+            // A pending blur texture is not permission to display a sharp line.
+            let show_sharp = sharp_mix > 0.001;
+            let opacity_sharp = sharp_mix;
             let opacity = if focused {
                 1.
             } else {

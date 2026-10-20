@@ -185,6 +185,11 @@ impl AppShell {
             }),
         )
         .track_scroll(&self.photo_page.scroll)
+        .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+            this.library.pointer_navigation = true;
+            this.library.hovered = None;
+            cx.notify();
+        }))
         .size_full()
         .px(layout.unit(22.));
         div()
@@ -199,6 +204,7 @@ impl AppShell {
                     .top(layout.unit(203.))
                     .bottom(layout.unit(88.))
                     .w(layout.unit(844.))
+                    .overflow_hidden()
                     .on_pinch(cx.listener(move |this, event: &PinchEvent, _, cx| {
                         this.zoom_photos(event.delta, event.position, layout, cx);
                         cx.stop_propagation();

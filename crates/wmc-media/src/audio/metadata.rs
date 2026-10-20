@@ -6,7 +6,7 @@ use lofty::{
     file::TaggedFileExt,
     picture::PictureType,
     probe::Probe,
-    tag::{ItemKey, Tag},
+    tag::{Accessor, ItemKey, Tag},
 };
 use std::path::Path;
 
@@ -15,6 +15,9 @@ pub struct TrackMetadata {
     pub title: Option<String>,
     pub artist: Option<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
+    pub track_number: Option<u32>,
+    pub disc_number: Option<u32>,
     pub lyrics: Option<String>,
     /// Original embedded picture bytes, not a temporary extracted file.
     pub cover: Option<Vec<u8>>,
@@ -57,6 +60,13 @@ impl TrackMetadata {
             title: text(ItemKey::TrackTitle),
             artist: text(ItemKey::TrackArtist).or_else(|| text(ItemKey::AlbumArtist)),
             album: text(ItemKey::AlbumTitle),
+            album_artist: text(ItemKey::AlbumArtist),
+            track_number: tags
+                .iter()
+                .find_map(|tag| tag.track().filter(|number| *number > 0)),
+            disc_number: tags
+                .iter()
+                .find_map(|tag| tag.disk().filter(|number| *number > 0)),
             lyrics: text(ItemKey::Lyrics).or_else(|| text(ItemKey::UnsyncLyrics)),
             cover,
         }
@@ -73,12 +83,17 @@ mod tests {
         let mut primary = Tag::new(TagType::Id3v2);
         primary.set_title("  ".into());
         primary.insert_text(ItemKey::AlbumArtist, "专辑歌手".into());
+        primary.set_track(3);
+        primary.set_disk(2);
         primary.insert_text(ItemKey::UnsyncLyrics, "没有时间戳的歌词".into());
         let mut secondary = Tag::new(TagType::Id3v1);
         secondary.set_title("歌曲标题".into());
         let result = TrackMetadata::from_tags(&[&primary, &secondary]);
         assert_eq!(result.title.as_deref(), Some("歌曲标题"));
         assert_eq!(result.artist.as_deref(), Some("专辑歌手"));
+        assert_eq!(result.album_artist.as_deref(), Some("专辑歌手"));
+        assert_eq!(result.track_number, Some(3));
+        assert_eq!(result.disc_number, Some(2));
         assert_eq!(result.lyrics.as_deref(), Some("没有时间戳的歌词"));
     }
 }

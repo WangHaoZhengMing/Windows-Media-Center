@@ -161,11 +161,21 @@ impl AppShell {
                         photo_gallery::photo_row(*selected, indices.len(), columns),
                         ScrollStrategy::Nearest,
                     );
+                } else {
+                    self.library.scroll[media_library::media_kind(kind).index()]
+                        .scroll_to_item((*selected % media_library::PAGE_SIZE) / columns);
                 }
                 cx.notify();
                 return;
             }
+            let previous_tab = self.destination_state.tab;
             self.destination_state.navigate(direction);
+            if self.destination_state.tab != previous_tab {
+                self.library.music_folder = None;
+                self.library.selection[1] = 0;
+                self.library.pages[1] = 0;
+                self.library.scroll[1].set_offset(point(px(0.), px(0.)));
+            }
             cx.notify();
             return;
         }
@@ -191,7 +201,7 @@ impl AppShell {
                 if let Some(&index) =
                     indices.get(self.library.selection[media_library::media_kind(kind).index()])
                 {
-                    self.open_media(index, window, cx);
+                    self.open_library_item(index, window, cx);
                 }
                 return;
             }
@@ -200,6 +210,7 @@ impl AppShell {
         }
         self.queue_visible = false;
         self.preview = Some(self.home_page.navigation.selected_entry());
+        self.library.music_folder = None;
         self.destination_state.reset(
             self.home_page.navigation.selected_entry().id,
             self.ambient_motion,
@@ -227,6 +238,9 @@ impl AppShell {
         self.player_page.entering = None;
         if self.photo_page.path.take().is_some() {
             cx.notify();
+            return;
+        }
+        if self.leave_music_group(cx) {
             return;
         }
         self.home_page.launch_dismissed = true;

@@ -87,6 +87,13 @@ impl AppShell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // A group card represents many songs; never run per-file actions on an
+        // arbitrary representative track from the album/artist overview.
+        let target = target.filter(|_| {
+            !(self.destination_state.kind
+                == DestinationKind::Library(crate::navigation::LibraryKind::Music)
+                && self.library.music_is_grouped(self.destination_state.tab))
+        });
         if self.details.is_some() {
             cx.stop_propagation();
             return;

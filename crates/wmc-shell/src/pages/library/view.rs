@@ -70,9 +70,11 @@ impl AppShell {
                         tab.child(img(PIVOT_RIGHT).w(layout.unit(9.)).h(layout.unit(16.)))
                     })
                     .on_click(cx.listener(move |this, _, window, cx| {
+                        this.library.music_folder = None;
                         this.destination_state.choose_tab(index);
                         this.library.selection[category] = 0;
                         this.library.pages[category] = 0;
+                        this.library.scroll[category].set_offset(point(px(0.), px(0.)));
                         this.library.hovered = None;
                         this.library.pointer_navigation = false;
                         window.focus(&this.focus, cx);
@@ -89,6 +91,17 @@ impl AppShell {
                 cx,
             );
         }
+        let groups = if kind == LibraryKind::Music
+            && self.library.music_is_grouped(self.destination_state.tab)
+        {
+            let items: Vec<_> = self.library.items.iter().map(|item| &item.entry).collect();
+            wmc_library::music::groups(
+                &items,
+                wmc_library::music::Category::from_tab(self.destination_state.tab),
+            )
+        } else {
+            Vec::new()
+        };
         let mut gallery = div()
             .id("media-gallery")
             .absolute()
@@ -98,9 +111,36 @@ impl AppShell {
             .w(layout.unit(844.))
             .p(layout.unit(22.))
             .overflow_y_scroll()
+            .track_scroll(&self.library.scroll[category])
+            .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+                this.library.pointer_navigation = true;
+                this.library.hovered = None;
+                cx.notify();
+            }))
             .flex()
             .flex_col()
             .gap(layout.unit(20.));
+        if kind == LibraryKind::Music
+            && let Some(group) = self.library.music_group(self.destination_state.tab)
+        {
+            let label = format!(
+                "‹ 返回{}  /  {}",
+                kind.tabs()[self.destination_state.tab],
+                group.label()
+            );
+            gallery = gallery.child(
+                div()
+                    .id("music-group-back")
+                    .flex_shrink_0()
+                    .cursor_pointer()
+                    .text_size(layout.unit(22.))
+                    .text_color(color(0x00b6df))
+                    .child(label)
+                    .on_click(cx.listener(|this, _, _, cx| {
+                        this.leave_music_group(cx);
+                    })),
+            );
+        }
         let shown: Vec<_> = indices
             .iter()
             .enumerate()
@@ -110,9 +150,34 @@ impl AppShell {
         let columns = if self.library.list { 1 } else { 5 };
         let thumb_size = if self.library.list { 48. } else { 136. };
         for row in shown.chunks(columns) {
-            let mut cards = div().flex().gap(layout.unit(24.));
+            let mut cards = div().flex().flex_shrink_0().gap(layout.unit(24.));
             for &(position, &index) in row {
                 let item = &self.library.items[index];
+                let group = groups.iter().find(|group| group.tracks[0] == index);
+                let title =
+                    group.map_or_else(|| item.title.clone(), |group| group.key.label().to_owned());
+                let subtitle = if let Some(group) = group {
+                    Some(match group.key.category {
+                        wmc_library::music::Category::Albums => format!(
+                            "{} · {} 首歌曲",
+                            group.key.artist.as_deref().unwrap_or("未知艺术家"),
+                            group.tracks.len()
+                        ),
+                        _ => format!("{} 首歌曲", group.tracks.len()),
+                    })
+                } else if kind == LibraryKind::Music {
+                    Some(item.artist.clone().unwrap_or_else(|| "未知艺术家".into()))
+                } else {
+                    item.artist.clone()
+                };
+                let cover = group
+                    .and_then(|group| {
+                        group
+                            .tracks
+                            .iter()
+                            .find_map(|&track| self.library.items[track].cover.clone())
+                    })
+                    .or_else(|| item.cover.clone());
                 let weak = cx.entity().downgrade();
                 let keyboard_focused = self.destination_state.focus == DestinationFocus::Content
                     && selected == position;
@@ -155,7 +220,7 @@ impl AppShell {
                     } else {
                         artwork(kind, thumb_layout.unit(thumb_size))
                     }
-                } else if let Some(cover) = &item.cover {
+                } else if let Some(cover) = &cover {
                     img(cover.clone())
                         .size(thumb_layout.unit(thumb_size))
                         .object_fit(ObjectFit::Cover)
@@ -215,16 +280,16 @@ impl AppShell {
                                 .overflow_hidden()
                                 .text_size(layout.unit(16. + 2. * focus))
                                 .text_color(color(WHITE))
-                                .child(item.title.clone()),
+                                .child(title),
                         )
-                        .when(item.artist.is_some(), |card| {
+                        .when(subtitle.is_some(), |card| {
                             card.child(
                                 div()
                                     .h(layout.unit(20.))
                                     .overflow_hidden()
                                     .text_size(layout.unit(12.))
                                     .text_color(color(MUTED))
-                                    .child(item.artist.clone().unwrap_or_default()),
+                                    .child(subtitle.clone().unwrap_or_default()),
                             )
                         })
                         .child(
@@ -269,7 +334,7 @@ impl AppShell {
                         .on_click(cx.listener(move |this, _, window, cx| {
                             this.library.selection[category] = position;
                             this.destination_state.focus = DestinationFocus::Content;
-                            this.open_media(index, window, cx);
+                            this.open_library_item(index, window, cx);
                         })),
                 );
             }
@@ -293,7 +358,7 @@ impl AppShell {
             error.clone()
         } else {
             format!(
-                "{} 个文件 · {} 个扫描目录{}",
+                "{} 项 · {} 个扫描目录{}",
                 indices.len(),
                 self.library.config.roots(media_kind(kind)).len(),
                 if self.library.skipped > 0 {
@@ -325,6 +390,7 @@ impl AppShell {
                         return;
                     }
                     this.library.pages[category] = page.saturating_add_signed(delta);
+                    this.library.scroll[category].set_offset(point(px(0.), px(0.)));
                     this.library.selection[category] = this.library.pages[category] * PAGE_SIZE;
                     cx.notify();
                 }),

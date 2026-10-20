@@ -94,14 +94,20 @@ impl RasterJob {
                 (px(self.layout.line_height * scale) - shaped.ascent - shaped.descent) / 2.
                     + shaped.ascent,
             );
-            for glyph in shaped.runs.iter().flat_map(|run| &run.glyphs) {
+            for (font_id, glyph) in shaped
+                .runs
+                .iter()
+                .flat_map(|run| run.glyphs.iter().map(move |glyph| (run.font_id, glyph)))
+            {
                 let Some(character) = word.text[glyph.index..].chars().next() else {
                     continue;
                 };
-                let Some(metrics) = self
-                    .font
-                    .rasterize(character, self.layout.font_size * scale)
-                else {
+                let Some(metrics) = self.font.rasterize_shaped(
+                    font_id,
+                    glyph.id,
+                    character,
+                    self.layout.font_size * scale,
+                ) else {
                     continue;
                 };
                 let gx = wp as i32 + f32::from(glyph.position.x).round() as i32 + metrics.xmin;

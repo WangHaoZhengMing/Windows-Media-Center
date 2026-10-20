@@ -1,4 +1,4 @@
-//! White native text; the lyric rasterizer uses the same bold system font.
+//! Native text with the same per-grapheme fallback policy as lyric rasterization.
 use gpui_kit::{prelude::*, *};
 
 pub(super) fn font_pixels(size: f32) -> Pixels {
@@ -31,21 +31,44 @@ pub(super) fn shape(
     window: &Window,
 ) -> ShapedLine {
     crate::diagnostics::shape();
-    let mut face = font("Microsoft YaHei UI");
-    face.weight = weight;
-    window.text_system().shape_line(
-        text.to_owned().into(),
-        px(size),
-        &[TextRun {
+    let spans = super::lyrics::font_catalog::select(text, weight.0 as u16);
+    let mut runs: Vec<_> = spans
+        .iter()
+        .map(|span| {
+            let mut face = font(span.family.clone());
+            face.weight = weight;
+            let native = window.text_system().resolve_font(&face);
+            super::lyrics::font_catalog::register(native, span.id);
+            TextRun {
+                len: span.len,
+                font: face,
+                color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            }
+        })
+        .collect();
+    if runs.is_empty() {
+        let mut face = font("SF Pro Display");
+        face.weight = weight;
+        face.fallbacks = Some(FontFallbacks::from_fonts(vec![
+            "Microsoft YaHei UI".into(),
+            "Noto Sans".into(),
+            "DejaVu Sans".into(),
+        ]));
+        runs.push(TextRun {
             len: text.len(),
             font: face,
             color,
             background_color: None,
             underline: None,
             strikethrough: None,
-        }],
-        None,
-    )
+        });
+    }
+    window
+        .text_system()
+        .shape_line(text.to_owned().into(), px(size), &runs, None)
 }
 
 pub(super) struct LitText<'a> {

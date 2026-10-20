@@ -14,16 +14,12 @@ pub fn indices<'a>(
     if kind == MediaKind::Photos {
         indices.sort_by_cached_key(|&n| (items[n].photo_time, items[n].file.path.clone()));
     } else if kind == MediaKind::Music {
+        return crate::music::tracks(&items, crate::music::Category::from_tab(tab), None);
+    } else {
         indices.sort_by_cached_key(|&n| {
-            let i = items[n];
-            let group = match tab {
-                0 => i.album.as_deref(),
-                1 | 7 => i.artist.as_deref(),
-                _ => None,
-            };
             (
-                group.unwrap_or_default().to_lowercase(),
-                i.title.to_lowercase(),
+                items[n].file.name.to_lowercase(),
+                items[n].file.path.clone(),
             )
         });
     }
@@ -49,8 +45,12 @@ mod tests {
                 kind: MediaKind::Photos,
             },
             title: name.into(),
+            title_known: false,
             artist: None,
             album: None,
+            album_artist: None,
+            track_number: None,
+            disc_number: None,
             thumbnail: None,
             photo_time,
         })
