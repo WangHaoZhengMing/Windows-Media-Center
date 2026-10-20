@@ -1,5 +1,6 @@
 # Rust builds and generated UI previews
 /target/
+/dist/
 
 # Local reverse-engineering output and Python dependencies
 /.analysis-tools/

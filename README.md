@@ -29,3 +29,16 @@ cargo build --release -p wmc-desktop --bin wmc
 ```
 
 生成的可执行文件位于 `target/release/wmc.exe`。
+
+## 自动构建和发布
+
+推送版本标签（例如 `v0.1.1`）会触发 `Build and release` 工作流，并行构建 Windows x64、Linux x64、macOS Intel 和 macOS Apple Silicon 版本。全部构建成功后，自动创建或更新对应的 Release，上传压缩包和 SHA256 校验文件；Windows 另提供独立 EXE。
+
+```powershell
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+`v0.2.0-beta.1` 等带后缀的标签会发布为预发布版本。也可以在 Actions 页面手动运行工作流，分支构建只生成下载附件，不发布 Release。
+
+macOS 提供 `.app` 压缩包，支持 macOS 13 及以上版本；应用采用临时签名，未经过 Apple 公证。Linux 提供保留执行权限的 `tar.gz`，使用系统的 ALSA、PulseAudio、字体、X11/Wayland 和图形驱动库，构建基线为 Ubuntu 22.04。
