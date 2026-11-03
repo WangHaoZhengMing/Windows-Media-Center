@@ -112,7 +112,7 @@ impl AppShell {
             .p(layout.unit(22.))
             .overflow_y_scroll()
             .track_scroll(&self.library.scroll[category])
-            .on_scroll_wheel(cx.listener(|this, _, _, cx| {
+            .on_scroll(cx.listener(|this, _, _, cx| {
                 this.library.pointer_navigation = true;
                 this.library.hovered = None;
                 cx.notify();
