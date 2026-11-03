@@ -4,7 +4,7 @@
 use super::qrc_tables::*;
 use aes::{
     Aes128,
-    cipher::{BlockEncrypt, KeyInit},
+    cipher::{BlockCipherEncrypt, KeyInit},
 };
 use anyhow::{Context, Result, ensure};
 use md5::{Digest, Md5};

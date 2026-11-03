@@ -18,7 +18,7 @@ impl LyricCache {
     fn path(&self, query: &TrackQuery) -> Result<PathBuf> {
         // Include album and duration so different recordings do not share a choice.
         let digest = Sha256::digest(serde_json::to_vec(query)?);
-        Ok(self.root.join(format!("{digest:x}.json")))
+        Ok(self.root.join(format!("{}.json", hex::encode(digest))))
     }
     pub fn load(&self, query: &TrackQuery) -> Result<Option<DownloadedLyrics>> {
         let path = self.path(query)?;

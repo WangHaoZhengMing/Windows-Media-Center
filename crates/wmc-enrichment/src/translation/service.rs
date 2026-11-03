@@ -41,10 +41,7 @@ impl Document {
             .iter()
             .map(|line| (line.start, line.end, &line.agents, line.background))
             .collect();
-        let hash = format!(
-            "{:x}",
-            Sha256::digest(serde_json::to_vec(&(&rows, timeline))?)
-        );
+        let hash = hex::encode(Sha256::digest(serde_json::to_vec(&(&rows, timeline))?));
         let mut seen = HashMap::<String, usize>::new();
         let mut segments = vec![];
         let mut aliases = BTreeMap::<usize, Vec<usize>>::new();
@@ -219,10 +216,9 @@ impl TranslationJob {
     }
 }
 fn cache_key(hash: &str, provider: &str, source: &str, target: &str) -> Result<String> {
-    Ok(format!(
-        "{:x}",
-        Sha256::digest(serde_json::to_vec(&(1, hash, provider, source, target))?)
-    ))
+    Ok(hex::encode(Sha256::digest(serde_json::to_vec(&(
+        1, hash, provider, source, target,
+    ))?)))
 }
 impl Drop for TranslationJob {
     fn drop(&mut self) {

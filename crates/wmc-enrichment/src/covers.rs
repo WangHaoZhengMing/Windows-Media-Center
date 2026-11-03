@@ -314,7 +314,7 @@ impl CoverCache {
         };
         let hash =
             Sha256::digest(serde_json::to_vec(&(name, &query.artist)).expect("strings serialize"));
-        self.root.join(format!("{hash:x}.json"))
+        self.root.join(format!("{}.json", hex::encode(hash)))
     }
     pub fn load(&self, query: &TrackQuery) -> Result<Option<DownloadedCover>> {
         let path = self.path(query);
