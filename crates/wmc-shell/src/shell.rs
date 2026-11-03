@@ -258,6 +258,77 @@ impl Focusable for AppShell {
 
 impl Render for AppShell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let content = self.render_content(window, cx).into_any_element();
+        let mut root = div().relative().size_full().child(content);
+        // GNOME Wayland provides no server-side resize borders.
+        if cfg!(target_os = "linux")
+            && matches!(window.window_decorations(), Decorations::Client { .. })
+            && !window.is_maximized()
+            && !window.is_fullscreen()
+        {
+            for (id, edge, cursor) in [
+                ("resize-top", ResizeEdge::Top, CursorStyle::ResizeUpDown),
+                (
+                    "resize-bottom",
+                    ResizeEdge::Bottom,
+                    CursorStyle::ResizeUpDown,
+                ),
+                (
+                    "resize-left",
+                    ResizeEdge::Left,
+                    CursorStyle::ResizeLeftRight,
+                ),
+                (
+                    "resize-right",
+                    ResizeEdge::Right,
+                    CursorStyle::ResizeLeftRight,
+                ),
+                (
+                    "resize-top-left",
+                    ResizeEdge::TopLeft,
+                    CursorStyle::ResizeUpLeftDownRight,
+                ),
+                (
+                    "resize-top-right",
+                    ResizeEdge::TopRight,
+                    CursorStyle::ResizeUpRightDownLeft,
+                ),
+                (
+                    "resize-bottom-left",
+                    ResizeEdge::BottomLeft,
+                    CursorStyle::ResizeUpRightDownLeft,
+                ),
+                (
+                    "resize-bottom-right",
+                    ResizeEdge::BottomRight,
+                    CursorStyle::ResizeUpLeftDownRight,
+                ),
+            ] {
+                let handle = div().id(id).absolute().cursor(cursor);
+                let handle = match edge {
+                    ResizeEdge::Top => handle.top_0().left(px(12.)).right(px(12.)).h(px(6.)),
+                    ResizeEdge::Bottom => handle.bottom_0().left(px(12.)).right(px(12.)).h(px(6.)),
+                    ResizeEdge::Left => handle.left_0().top(px(12.)).bottom(px(12.)).w(px(6.)),
+                    ResizeEdge::Right => handle.right_0().top(px(12.)).bottom(px(12.)).w(px(6.)),
+                    ResizeEdge::TopLeft => handle.top_0().left_0().size(px(12.)),
+                    ResizeEdge::TopRight => handle.top_0().right_0().size(px(12.)),
+                    ResizeEdge::BottomLeft => handle.bottom_0().left_0().size(px(12.)),
+                    ResizeEdge::BottomRight => handle.bottom_0().right_0().size(px(12.)),
+                };
+                root = root.child(
+                    handle.on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                        cx.stop_propagation();
+                        window.start_window_resize(edge);
+                    }),
+                );
+            }
+        }
+        root
+    }
+}
+
+impl AppShell {
+    fn render_content(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.advance_player_exit(window, cx);
         self.advance_context_menu(window, cx);
         self.advance_details(window, cx);
